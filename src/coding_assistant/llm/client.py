@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from typing import Any
 
+import httpx
 from openai import AsyncOpenAI
 
 from coding_assistant.core.types import AgentRole
@@ -21,6 +23,15 @@ DEFAULT_MODELS: dict[AgentRole, str] = {
 
 MAX_RETRIES = 3
 INITIAL_BACKOFF = 1.0
+DEFAULT_TIMEOUT = 120.0
+
+
+def _get_proxy_url() -> str | None:
+    for var in ("HTTPS_PROXY", "https_proxy", "HTTP_PROXY", "http_proxy", "ALL_PROXY", "all_proxy"):
+        val = os.environ.get(var)
+        if val:
+            return val
+    return None
 
 
 class LLMClient:
@@ -29,8 +40,18 @@ class LLMClient:
         api_key: str | None = None,
         base_url: str | None = None,
         model_overrides: dict[AgentRole, str] | None = None,
+        timeout: float = DEFAULT_TIMEOUT,
     ) -> None:
-        self._client = AsyncOpenAI(api_key=api_key, base_url=base_url)
+        proxy = _get_proxy_url()
+        http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(timeout, connect=30.0),
+            proxy=proxy,
+        )
+        self._client = AsyncOpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            http_client=http_client,
+        )
         self._model_overrides = model_overrides or {}
         self._token_usage: dict[str, int] = {"prompt": 0, "completion": 0, "total": 0}
 
@@ -114,14 +135,16 @@ class LLMClient:
         tool_calls = []
         if message.tool_calls:
             for tc in message.tool_calls:
-                tool_calls.append({
-                    "id": tc.id,
-                    "type": "function",
-                    "function": {
-                        "name": tc.function.name,
-                        "arguments": tc.function.arguments,
-                    },
-                })
+                tool_calls.append(
+                    {
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        },
+                    }
+                )
 
         return {
             "content": message.content or "",
@@ -155,9 +178,9 @@ class LLMClient:
                             if tc.function.name:
                                 collected_tool_calls[idx]["function"]["name"] += tc.function.name
                             if tc.function.arguments:
-                                collected_tool_calls[idx]["function"][
-                                    "arguments"
-                                ] += tc.function.arguments
+                                collected_tool_calls[idx]["function"]["arguments"] += (
+                                    tc.function.arguments
+                                )
 
         tool_calls_list = [collected_tool_calls[i] for i in sorted(collected_tool_calls.keys())]
 
