@@ -8,7 +8,7 @@
 - **GitHub 仓库**: git@github.com:Go-Hub-l/codeassistant.git
 - **技术栈**: Python 3.11+ / LangGraph / OpenAI / Rich+Click CLI
 - **当前分支**: main
-- **最近提交**: 73e623f — Implement Reviewer Agent (#10) and iteration mode (#15)
+- **最近提交**: c7199ca — Implement QA Agent (#11) and end-to-end integration tests (#16)
 
 ## 28 项核心设计决策
 
@@ -45,25 +45,26 @@
 
 ## GitHub Issues 进度
 
-### 已完成 (13/16)
-- **#1** PRD: Multi-Agent Coding Assistant — 已发布
-- **#2** Agent 基类与注册机制 ✅ (`agents/base.py`, `agents/registry.py`)
-- **#3** LLM 集成层 + Prompt 模板 ✅ (`llm/client.py`, `llm/templates.py`, `llm/config.py`)
-- **#4** Workspace 对象与持久化 ✅ (`core/workspace.py`, `core/workspace_manager.py`)
-- **#5** Handoff 工具与 Host 调度器 ✅ (`core/host.py`, `core/pipeline.py`)
-- **#6** PM Agent 实现 ✅ (`agents/pm_agent.py`)
-- **#7** Architect Agent 实现 ✅ (`agents/architect_agent.py`)
-- **#8** 文件系统与代码执行工具 ✅ (`tools/file_system.py`, `tools/code_executor.py`)
-- **#9** Dev Agent 实现 ✅ (`agents/dev_agent.py`)
-- **#10** Reviewer Agent 实现 ✅ (`agents/reviewer_agent.py`)
-- **#12** Git 集成 ✅ (`tools/git_operations.py`)
-- **#13** CLI 交互界面 ✅ (`cli/main.py`)
-- **#14** 错误边界处理 ✅ (`core/error_handler.py`, `core/workspace_manager.py`)
-- **#15** 迭代模式支持 ✅ (`core/host.py`, `cli/main.py`)
+### ✅ 全部完成 (16/16)
+- **#1** PRD: Multi-Agent Coding Assistant
+- **#2** Agent 基类与注册机制
+- **#3** LLM 集成层 + Prompt 模板
+- **#4** Workspace 对象与持久化
+- **#5** Handoff 工具与 Host 调度器
+- **#6** PM Agent 实现
+- **#7** Architect Agent 实现
+- **#8** 文件系统与代码执行工具
+- **#9** Dev Agent 实现
+- **#10** Reviewer Agent 实现
+- **#11** QA Agent 实现
+- **#12** Git 集成
+- **#13** CLI 交互界面
+- **#14** 错误边界处理
+- **#15** 迭代模式支持
+- **#16** 端到端集成测试
 
-### 待实施 (3/16)
-- **#11** QA Agent — 依赖 #9 ✅ + #10 ✅
-- **#16** 端到端集成测试 — 依赖 #11 + #13 ✅ + #15 ✅
+### 已知技术问题
+- Host 调度器在检测到 Agent stuck 时触发 CHECKPOINT 但未自动推进阶段，导致无限循环。需添加 `next_phase` 到 stuck-Checkpoint 决策中。
 
 ## 项目目录结构
 
@@ -76,6 +77,7 @@ src/coding_assistant/
 │   ├── base.py              # Agent 基类、Handoff 工具
 │   ├── dev_agent.py          # Dev Agent — 代码生成/文档
 │   ├── pm_agent.py           # PM Agent — 需求分析
+│   ├── qa_agent.py           # QA Agent — 测试生成/执行
 │   ├── registry.py          # AgentRegistry + create_default_registry
 │   └── reviewer_agent.py    # Reviewer Agent — 代码审查/安全扫描
 ├── cli/
@@ -103,7 +105,8 @@ src/coding_assistant/
 
 ## 测试状态
 
-- **205 个单元测试全部通过**
+- **222 个单元测试全部通过**
+- **4 个 E2E 测试（标记 @pytest.mark.e2e，需 `--run-e2e` 标志）**
 - **ruff lint clean**
 
 ## 恢复指南
@@ -118,6 +121,6 @@ src/coding_assistant/
 6. 查看 GitHub Issues 确认待办项
 7. 继续实施下一个 Issue
 
-### 优先实施顺序
-1. #11 QA Agent
-2. #16 E2E 集成测试
+### 后续工作
+- 修复 Host stuck 检测的 Checkpoint 无限循环问题
+- E2E 测试需要真实 LLM API Key 运行
