@@ -45,9 +45,7 @@ class TestHostScheduling:
 class TestHostDecisions:
     def test_completed_handoff_advances(self, tmp_path: Path):
         host = _make_host(tmp_path)
-        handoff = HandoffResult(
-            status=HandoffStatus.COMPLETED, summary="Requirements done"
-        )
+        handoff = HandoffResult(status=HandoffStatus.COMPLETED, summary="Requirements done")
         decision = host.decide_next_action(handoff)
         assert decision.action == HostAction.CHECKPOINT_THEN_ADVANCE
         assert decision.next_phase == PipelinePhase.ARCHITECTURE
@@ -89,17 +87,13 @@ class TestHostDecisions:
 
     def test_incomplete_handoff_force_handoff(self, tmp_path: Path):
         host = _make_host(tmp_path)
-        handoff = HandoffResult(
-            status=HandoffStatus.INCOMPLETE, summary="Agent stopped"
-        )
+        handoff = HandoffResult(status=HandoffStatus.INCOMPLETE, summary="Agent stopped")
         decision = host.decide_next_action(handoff)
         assert decision.action == HostAction.FORCE_HANDOFF
 
     def test_failed_handoff_checkpoint(self, tmp_path: Path):
         host = _make_host(tmp_path)
-        handoff = HandoffResult(
-            status=HandoffStatus.FAILED, summary="LLM error"
-        )
+        handoff = HandoffResult(status=HandoffStatus.FAILED, summary="LLM error")
         decision = host.decide_next_action(handoff)
         assert decision.action == HostAction.CHECKPOINT
 
@@ -117,9 +111,7 @@ class TestHostDecisions:
     def test_pipeline_complete(self, tmp_path: Path):
         host = _make_host(tmp_path)
         host.advance_to(PipelinePhase.GIT_COMMIT)
-        handoff = HandoffResult(
-            status=HandoffStatus.COMPLETED, summary="Committed"
-        )
+        handoff = HandoffResult(status=HandoffStatus.COMPLETED, summary="Committed")
         decision = host.decide_next_action(handoff)
         assert decision.action == HostAction.COMPLETE
 
@@ -127,9 +119,7 @@ class TestHostDecisions:
 class TestHostHandoffHandling:
     def test_handle_handoff_saves_workspace(self, tmp_path: Path):
         host = _make_host(tmp_path)
-        handoff = HandoffResult(
-            status=HandoffStatus.COMPLETED, summary="PM analysis done"
-        )
+        handoff = HandoffResult(status=HandoffStatus.COMPLETED, summary="PM analysis done")
         asyncio.run(host.handle_handoff(handoff))
         assert host.workspace.progress.phase_summaries.get("requirements") == "PM analysis done"
 
@@ -137,3 +127,36 @@ class TestHostHandoffHandling:
         host = _make_host(tmp_path)
         decision = asyncio.run(host.handle_forced_handoff("Agent timed out"))
         assert decision.action == HostAction.FORCE_HANDOFF
+
+
+class TestHostIteration:
+    def test_initial_iteration_count_is_zero(self, tmp_path: Path):
+        host = _make_host(tmp_path)
+        assert host.state.iteration_count == 0
+
+    def test_start_iteration_resets_pipeline(self, tmp_path: Path):
+        host = _make_host(tmp_path)
+        host.state.iteration_count = 1
+        host.advance_to(PipelinePhase.ARCHITECTURE)
+        host.state.retry_count = 2
+        host.workspace.increment_retry_count()
+
+        result = host.start_iteration()
+
+        assert result is True
+        assert host.state.current_phase == PipelinePhase.REQUIREMENTS
+        assert host.state.retry_count == 0
+        assert host.workspace.progress.retry_count == 0
+
+    def test_get_iteration_context(self, tmp_path: Path):
+        host = _make_host(tmp_path)
+        host.state.iteration_count = 1
+        host.advance_to(PipelinePhase.DEVELOPMENT)
+        host.workspace.add_phase_summary("requirements", "PRD done")
+        host.workspace.add_phase_summary("architecture", "Architecture done")
+
+        context = host.get_iteration_context()
+
+        assert "Iteration 2" in context
+        assert "PRD done" in context
+        assert "Architecture done" in context

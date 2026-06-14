@@ -39,6 +39,16 @@ PHASE_ORDER: list[PipelinePhase] = [
     PipelinePhase.DONE,
 ]
 
+ITERATION_PHASES: set[PipelinePhase] = {
+    PipelinePhase.REQUIREMENTS,
+    PipelinePhase.ARCHITECTURE,
+    PipelinePhase.DEVELOPMENT,
+    PipelinePhase.REVIEW,
+    PipelinePhase.TESTING,
+    PipelinePhase.DOCUMENTATION,
+    PipelinePhase.GIT_COMMIT,
+}
+
 CHECKPOINT_PHASES: set[PipelinePhase] = {
     PipelinePhase.REQUIREMENTS,
     PipelinePhase.ARCHITECTURE,

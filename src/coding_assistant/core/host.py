@@ -30,6 +30,7 @@ class HostAction(str, enum.Enum):
     RETRY_DEV = "retry_dev"
     FORCE_HANDOFF = "force_handoff"
     COMPLETE = "complete"
+    START_ITERATION = "start_iteration"
 
 
 class HostDecision:
@@ -108,10 +109,7 @@ class Host:
                 phase=self.state.current_phase,
             )
 
-        if (
-            handoff.severity == Severity.MINOR
-            and self.state.retry_count < self.state.max_retries
-        ):
+        if handoff.severity == Severity.MINOR and self.state.retry_count < self.state.max_retries:
             self.state.retry_count += 1
             self.workspace.increment_retry_count()
             return HostDecision(
@@ -187,3 +185,29 @@ class Host:
         if self.checkpoint_callback:
             return await self.checkpoint_callback(phase, self.workspace)
         return None
+
+    def start_iteration(self) -> bool:
+        if self.state.iteration_count == 0:
+            return False
+        self.state.current_phase = PipelinePhase.REQUIREMENTS
+        self.state.retry_count = 0
+        self.state.last_summary = ""
+        self.state.waiting_for_checkpoint = False
+        self.state.checkpoint_phase = None
+        self.workspace.reset_retry_count()
+        return True
+
+    def get_iteration_context(self) -> str:
+        parts: list[str] = []
+        parts.append(f"# Iteration {self.state.iteration_count + 1}")
+        if self.state.completed_phases:
+            parts.append(
+                f"Completed phases: {', '.join(p.value for p in self.state.completed_phases)}"
+            )
+        if self.workspace.progress.phase_summaries:
+            summaries = "\n".join(
+                f"  {phase}: {summary[:200]}"
+                for phase, summary in self.workspace.progress.phase_summaries.items()
+            )
+            parts.append(f"Previous results:\n{summaries}")
+        return "\n".join(parts)

@@ -14,6 +14,7 @@ from coding_assistant.agents.architect_agent import ArchitectAgent
 from coding_assistant.agents.dev_agent import DevAgent
 from coding_assistant.agents.pm_agent import PMAgent
 from coding_assistant.agents.registry import create_default_registry
+from coding_assistant.agents.reviewer_agent import ReviewerAgent
 from coding_assistant.core.host import Host, HostAction, HostDecision
 from coding_assistant.core.pipeline import PHASE_AGENT_MAP, PipelinePhase
 from coding_assistant.core.types import AgentRole
@@ -132,11 +133,18 @@ class CodingAssistantSession:
         workspace = self.workspace_manager.workspace
         workspace.progress.current_phase = self.host.state.current_phase.value
 
+        if self.is_iteration:
+            self.host.state.iteration_count += 1
+            console.print(f"[dim]Iteration {self.host.state.iteration_count}[/dim]")
+            parsed_input = self._parse_iteration_input(initial_input)
+        else:
+            parsed_input = initial_input
+
         agent = self.host.get_current_agent()
         agent.model = self.llm_client.get_model(agent.role)
 
         console.print(_agent_label(agent.role), "Analyzing requirements...")
-        handoff = await self._dispatch_agent(agent, initial_input)
+        handoff = await self._dispatch_agent(agent, parsed_input)
 
         architect_feedback: str | None = None
 
@@ -149,6 +157,12 @@ class CodingAssistantSession:
 
             if decision.action == HostAction.COMPLETE:
                 console.print("[bold green]Pipeline complete![/bold green]")
+                if self.is_iteration:
+                    commit_msg = (
+                        f"Iteration {self.host.state.iteration_count}: "
+                        f"feature update after pipeline completion"
+                    )
+                    self.git_tool.commit(commit_msg)
                 break
 
             if decision.action == HostAction.CHECKPOINT:
@@ -156,6 +170,8 @@ class CodingAssistantSession:
                     feedback = await self.host.run_checkpoint(decision.phase)
                     if feedback and decision.phase == PipelinePhase.ARCHITECTURE:
                         architect_feedback = feedback
+                    if decision.phase == PipelinePhase.GIT_COMMIT:
+                        self._git_commit_at_checkpoint()
                 continue
 
             if decision.action == HostAction.RETRY_DEV:
@@ -226,6 +242,8 @@ class CodingAssistantSession:
                 self.workspace_manager.workspace,
                 feedback=extra.get("dev_feedback"),
             )
+        if isinstance(agent, ReviewerAgent):
+            return await agent.review_code(self.workspace_manager.workspace)
         return await agent.run(input_text)
 
     def _build_agent_input(self, role: AgentRole) -> str:
@@ -246,6 +264,37 @@ class CodingAssistantSession:
             files = [f.path for f in ws.code.files]
             return f"Write and run tests for: {', '.join(files)}"
         return "Continue with your role."
+
+    def _parse_iteration_input(self, user_input: str) -> str:
+        stripped = user_input.strip()
+        if stripped.startswith("/add-feature"):
+            feature_desc = stripped[len("/add-feature") :].strip()
+            return (
+                f"[ITERATION] Add new feature: {feature_desc or 'as described'}. "
+                "Preserve all existing functionality and extend the codebase."
+            )
+        if stripped.startswith("/modify"):
+            modify_desc = stripped[len("/modify") :].strip()
+            return (
+                f"[ITERATION] Modify existing feature: {modify_desc or 'as described'}. "
+                "Update the relevant code without breaking existing functionality."
+            )
+        if stripped.startswith("/fix"):
+            fix_desc = stripped[len("/fix") :].strip()
+            return (
+                f"[ITERATION] Fix bug: {fix_desc or 'as described'}. "
+                "Fix the issue while maintaining backward compatibility."
+            )
+        return f"[ITERATION] New requirement: {stripped}. Preserve existing functionality."
+
+    def _git_commit_at_checkpoint(self) -> None:
+        phase = self.host.state.current_phase.value
+        iteration = self.host.state.iteration_count
+        if iteration > 0:
+            msg = f"Checkpoint: {phase} (iteration {iteration})"
+        else:
+            msg = f"Checkpoint: {phase}"
+        self.git_tool.commit(msg)
 
     def _display_decision(self, decision: HostDecision) -> None:
         console.print(f"[dim]{decision.action.value}: {decision.reason}[/dim]")
@@ -308,13 +357,25 @@ def iter_project(project_name: str, base_dir: str) -> None:
     )
 
     console.print("[bold]What would you like to add or change?[/bold]")
-    try:
-        requirement = input("> ").strip()
-    except (EOFError, KeyboardInterrupt):
-        return
+    console.print("[dim]Commands: /add-feature <desc>, /modify <desc>, /fix <desc>[/dim]")
+    console.print("[dim]Type 'exit' or 'quit' to end the session.[/dim]")
 
-    if requirement:
+    while True:
+        try:
+            requirement = input("> ").strip()
+        except (EOFError, KeyboardInterrupt):
+            break
+
+        if not requirement:
+            continue
+
+        if requirement.lower() in ("exit", "quit", "q"):
+            console.print("[bold]Session ended.[/bold]")
+            break
+
         asyncio.run(session.run(requirement))
+
+        console.print("\n[bold]Anything else?[/bold]")
 
 
 if __name__ == "__main__":

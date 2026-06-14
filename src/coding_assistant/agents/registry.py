@@ -6,6 +6,7 @@ from coding_assistant.agents.architect_agent import ArchitectAgent
 from coding_assistant.agents.base import Agent
 from coding_assistant.agents.dev_agent import DevAgent
 from coding_assistant.agents.pm_agent import PMAgent
+from coding_assistant.agents.reviewer_agent import ReviewerAgent
 from coding_assistant.core.types import AgentRole
 
 
@@ -60,16 +61,16 @@ def create_default_registry(**kwargs: Any) -> AgentRegistry:
         )
     )
 
-    reviewer_config = {
-        "role": AgentRole.REVIEWER,
-        "system_prompt": (
-            "You are a Code Reviewer agent. Audit code for quality, security, "
-            "and convention compliance. Run static analysis tools (ruff, bandit, mypy). "
-            "Classify issues by severity: minor, major, or critical. "
-            "Write your review report to the Workspace Review partition. "
-            "When done, call the handoff tool."
-        ),
-    }
+    registry.register(
+        ReviewerAgent(
+            llm_client=kwargs.get("llm_client"),
+            model=kwargs.get("model"),
+            project_dir=kwargs.get("project_dir"),
+            fs_tool=kwargs.get("fs_tool"),
+            shell_tool=kwargs.get("shell_tool"),
+        )
+    )
+
     qa_config = {
         "role": AgentRole.QA,
         "system_prompt": (
@@ -92,7 +93,7 @@ def create_default_registry(**kwargs: Any) -> AgentRegistry:
         ),
     }
 
-    for config in [reviewer_config, qa_config, pmgr_config]:
+    for config in [qa_config, pmgr_config]:
         role: AgentRole = cast(AgentRole, config["role"])
         agent_kwargs = {
             "llm_client": kwargs.get("llm_client"),
