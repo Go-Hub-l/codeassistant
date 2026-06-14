@@ -8,7 +8,7 @@
 - **GitHub 仓库**: git@github.com:Go-Hub-l/codeassistant.git
 - **技术栈**: Python 3.11+ / LangGraph / OpenAI / Rich+Click CLI
 - **当前分支**: main
-- **最近提交**: fa3665a — Implement PM Agent (#6) and CLI interface (#13)
+- **最近提交**: b9136ad — Implement Dev Agent (#9)
 
 ## 28 项核心设计决策
 
@@ -45,23 +45,23 @@
 
 ## GitHub Issues 进度
 
-### 已完成 (8/16)
+### 已完成 (11/16)
 - **#1** PRD: Multi-Agent Coding Assistant — 已发布
 - **#2** Agent 基类与注册机制 ✅ (`agents/base.py`, `agents/registry.py`)
 - **#3** LLM 集成层 + Prompt 模板 ✅ (`llm/client.py`, `llm/templates.py`, `llm/config.py`)
 - **#4** Workspace 对象与持久化 ✅ (`core/workspace.py`, `core/workspace_manager.py`)
 - **#5** Handoff 工具与 Host 调度器 ✅ (`core/host.py`, `core/pipeline.py`)
 - **#6** PM Agent 实现 ✅ (`agents/pm_agent.py`)
+- **#7** Architect Agent 实现 ✅ (`agents/architect_agent.py`)
 - **#8** 文件系统与代码执行工具 ✅ (`tools/file_system.py`, `tools/code_executor.py`)
+- **#9** Dev Agent 实现 ✅ (`agents/dev_agent.py`)
 - **#12** Git 集成 ✅ (`tools/git_operations.py`)
 - **#13** CLI 交互界面 ✅ (`cli/main.py`)
+- **#14** 错误边界处理 ✅ (`core/error_handler.py`, `core/workspace_manager.py`)
 
-### 待实施 (7/16)
-- **#7** Architect Agent — 依赖 #6 ✅，可立即开始
-- **#9** Dev Agent — 依赖 #7 + #8 ✅
-- **#10** Reviewer Agent — 依赖 #9
+### 待实施 (5/16)
+- **#10** Reviewer Agent — 依赖 #9 ✅
 - **#11** QA Agent — 依赖 #9 + #10
-- **#14** 错误边界处理 — 依赖 #5 ✅ + #13 ✅，可立即开始
 - **#15** 迭代模式支持 — 依赖 #4 ✅ + #5 ✅ + #12 ✅，可立即开始
 - **#16** 端到端集成测试 — 依赖 #11 + #13 ✅ + #15
 
@@ -72,14 +72,17 @@ src/coding_assistant/
 ├── __init__.py
 ├── agents/
 │   ├── __init__.py
+│   ├── architect_agent.py   # Architect Agent — 架构设计
 │   ├── base.py              # Agent 基类、Handoff 工具
-│   ├── registry.py          # AgentRegistry + create_default_registry
-│   └── pm_agent.py           # PM Agent 实现
+│   ├── dev_agent.py          # Dev Agent — 代码生成/文档
+│   ├── pm_agent.py           # PM Agent — 需求分析
+│   └── registry.py          # AgentRegistry + create_default_registry
 ├── cli/
 │   ├── __init__.py
 │   └── main.py              # CLI 入口（new/iter 命令）
 ├── core/
 │   ├── __init__.py
+│   ├── error_handler.py    # ErrorHandler — 错误分类与恢复策略
 │   ├── host.py              # Host 调度器、HostAction、HostDecision
 │   ├── pipeline.py          # PipelinePhase、PHASE_ORDER、CHECKPOINT_PHASES
 │   ├── types.py             # AgentRole、HandoffStatus、Severity、HandoffResult
@@ -99,7 +102,7 @@ src/coding_assistant/
 
 ## 测试状态
 
-- **123 个单元测试全部通过**
+- **186 个单元测试全部通过**
 - **ruff lint clean**
 
 ## 恢复指南
@@ -115,8 +118,6 @@ src/coding_assistant/
 7. 继续实施下一个 Issue
 
 ### 优先实施顺序
-1. #7 Architect Agent + #14 错误边界处理（可并行）
-2. #9 Dev Agent
-3. #10 Reviewer Agent + #15 迭代模式（可并行）
-4. #11 QA Agent
-5. #16 E2E 集成测试
+1. #10 Reviewer Agent + #15 迭代模式（可并行）
+2. #11 QA Agent
+3. #16 E2E 集成测试
