@@ -1,0 +1,54 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "coding-assistant"
+version = "0.1.0"
+description = "Multi-agent coding assistant that transforms natural language requirements into runnable code projects"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+dependencies = [
+    "openai>=1.0.0",
+    "langchain>=0.2.0",
+    "langgraph>=0.2.0",
+    "pydantic>=2.5.0",
+    "rich>=13.0.0",
+    "click>=8.1.0",
+    "prompt-toolkit>=3.0.0",
+    "gitpython>=3.1.0",
+    "docker>=7.0.0",
+    "pyyaml>=6.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+    "pytest-cov>=5.0.0",
+    "pytest-asyncio>=0.23.0",
+    "ruff>=0.4.0",
+    "mypy>=1.10.0",
+]
+
+[project.scripts]
+coding-assistant = "coding_assistant.cli.main:cli"
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "e2e: end-to-end tests (deselect with '-m \"not e2e\"')",
+    "integration: integration tests",
+]
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
