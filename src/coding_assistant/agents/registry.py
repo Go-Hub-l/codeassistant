@@ -6,6 +6,7 @@ from coding_assistant.agents.architect_agent import ArchitectAgent
 from coding_assistant.agents.base import Agent
 from coding_assistant.agents.dev_agent import DevAgent
 from coding_assistant.agents.pm_agent import PMAgent
+from coding_assistant.agents.qa_agent import QAAgent
 from coding_assistant.agents.reviewer_agent import ReviewerAgent
 from coding_assistant.core.types import AgentRole
 
@@ -71,17 +72,16 @@ def create_default_registry(**kwargs: Any) -> AgentRegistry:
         )
     )
 
-    qa_config = {
-        "role": AgentRole.QA,
-        "system_prompt": (
-            "You are a QA agent. Generate and execute tests for the implemented code. "
-            "Create unit tests and integration tests using pytest. "
-            "Run tests in Docker, capture results and coverage. "
-            "Classify failures by severity. "
-            "Write your test report to the Workspace Test partition. "
-            "When done, call the handoff tool."
-        ),
-    }
+    registry.register(
+        QAAgent(
+            llm_client=kwargs.get("llm_client"),
+            model=kwargs.get("model"),
+            project_dir=kwargs.get("project_dir"),
+            fs_tool=kwargs.get("fs_tool"),
+            shell_tool=kwargs.get("shell_tool"),
+        )
+    )
+
     pmgr_config = {
         "role": AgentRole.PMGR,
         "system_prompt": (
@@ -93,7 +93,7 @@ def create_default_registry(**kwargs: Any) -> AgentRegistry:
         ),
     }
 
-    for config in [qa_config, pmgr_config]:
+    for config in [pmgr_config]:
         role: AgentRole = cast(AgentRole, config["role"])
         agent_kwargs = {
             "llm_client": kwargs.get("llm_client"),

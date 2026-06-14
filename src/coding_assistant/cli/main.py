@@ -13,6 +13,7 @@ from rich.text import Text
 from coding_assistant.agents.architect_agent import ArchitectAgent
 from coding_assistant.agents.dev_agent import DevAgent
 from coding_assistant.agents.pm_agent import PMAgent
+from coding_assistant.agents.qa_agent import QAAgent
 from coding_assistant.agents.registry import create_default_registry
 from coding_assistant.agents.reviewer_agent import ReviewerAgent
 from coding_assistant.core.host import Host, HostAction, HostDecision
@@ -244,6 +245,8 @@ class CodingAssistantSession:
             )
         if isinstance(agent, ReviewerAgent):
             return await agent.review_code(self.workspace_manager.workspace)
+        if isinstance(agent, QAAgent):
+            return await agent.test_code(self.workspace_manager.workspace)
         return await agent.run(input_text)
 
     def _build_agent_input(self, role: AgentRole) -> str:

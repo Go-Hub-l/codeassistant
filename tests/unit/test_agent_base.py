@@ -7,6 +7,7 @@ from coding_assistant.agents.architect_agent import ArchitectAgent
 from coding_assistant.agents.base import Agent
 from coding_assistant.agents.dev_agent import DevAgent
 from coding_assistant.agents.pm_agent import PMAgent
+from coding_assistant.agents.qa_agent import QAAgent
 from coding_assistant.agents.registry import AgentRegistry, create_default_registry
 from coding_assistant.agents.reviewer_agent import ReviewerAgent
 from coding_assistant.core.types import AgentRole, HandoffStatus, Severity
@@ -197,3 +198,6 @@ class TestCreateDefaultRegistry:
 
         reviewer_agent = registry.get(AgentRole.REVIEWER)
         assert isinstance(reviewer_agent, ReviewerAgent)
+
+        qa_agent = registry.get(AgentRole.QA)
+        assert isinstance(qa_agent, QAAgent)
