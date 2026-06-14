@@ -164,13 +164,13 @@ class Host:
         return ratio >= SIMILARITY_THRESHOLD
 
     async def handle_handoff(self, handoff: HandoffResult) -> HostDecision:
-        self.decide_next_action(handoff)
+        decision = self.decide_next_action(handoff)
         self.workspace.add_phase_summary(
             self.state.current_phase.value,
             handoff.summary,
         )
         self.workspace_manager.save()
-        return self.decide_next_action(handoff)
+        return decision
 
     async def handle_forced_handoff(self, summary: str) -> HostDecision:
         forced = HandoffResult(

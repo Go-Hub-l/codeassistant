@@ -8,7 +8,6 @@ from coding_assistant.cli.main import CodingAssistantSession
 
 
 @pytest.mark.e2e
-@pytest.mark.skip(reason="E2E requires Host checkpoint loop fix for infinite re-check")
 class TestE2EPipeline:
     """End-to-end tests exercising the full pipeline with mocked LLM."""
 
@@ -85,6 +84,13 @@ class TestE2EPipeline:
             "error": False,
         }
 
+    def _pmgr_response(self):
+        return {
+            "content": "Pipeline complete.",
+            "tool_calls": [self._handoff("completed", "All phases done", "done")],
+            "error": False,
+        }
+
     def _create_session(self, tmp_path, llm_client, monkeypatch, is_iteration=False):
         monkeypatch.setattr("builtins.input", lambda prompt="": "ok")
         monkeypatch.setattr("coding_assistant.cli.main.resolve_api_key", lambda: "mock-key")
@@ -110,6 +116,7 @@ class TestE2EPipeline:
             self._reviewer_response(),
             self._qa_response(),
             self._docs_response(),
+            self._pmgr_response(),
         ]
         session = self._create_session(tmp_path, mock_llm, monkeypatch)
         asyncio.run(session.run("Build a simple TODO API"))
@@ -134,6 +141,7 @@ class TestE2EPipeline:
             self._reviewer_response(),
             self._qa_response(),
             self._docs_response(),
+            self._pmgr_response(),
         ]
         session = self._create_session(tmp_path, mock_llm, monkeypatch)
         asyncio.run(session.run("Build a simple TODO API"))
@@ -149,6 +157,7 @@ class TestE2EPipeline:
             self._reviewer_response(),
             self._qa_response(),
             self._docs_response(),
+            self._pmgr_response(),
         ]
         session = self._create_session(tmp_path, mock_llm, monkeypatch)
         asyncio.run(session.run("Build a simple TODO API"))
@@ -163,6 +172,7 @@ class TestE2EPipeline:
             self._reviewer_response(),
             self._qa_response(),
             self._docs_response(),
+            self._pmgr_response(),
         ]
         session = self._create_session(tmp_path, mock_llm, monkeypatch)
         asyncio.run(session.run("Build a simple TODO API"))

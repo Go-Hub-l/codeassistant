@@ -167,12 +167,43 @@ class CodingAssistantSession:
                 break
 
             if decision.action == HostAction.CHECKPOINT:
+                feedback = None
                 if decision.phase:
                     feedback = await self.host.run_checkpoint(decision.phase)
                     if feedback and decision.phase == PipelinePhase.ARCHITECTURE:
                         architect_feedback = feedback
                     if decision.phase == PipelinePhase.GIT_COMMIT:
                         self._git_commit_at_checkpoint()
+
+                if feedback:
+                    agent = self.host.get_current_agent()
+                    agent.model = self.llm_client.get_model(agent.role)
+                    console.print(_agent_label(agent.role), "Revising with your feedback...")
+                    handoff = await self._dispatch_agent(
+                        agent,
+                        f"User feedback: {feedback}. Revise your output accordingly.",
+                    )
+                    continue
+
+                next_phase = self.host.get_next_phase(self.host.state.current_phase)
+                if next_phase and next_phase != PipelinePhase.DONE:
+                    self.host.advance_to(next_phase)
+                    agent = self.host.get_current_agent()
+                    agent.model = self.llm_client.get_model(agent.role)
+                    console.print(
+                        _agent_label(agent.role),
+                        f"Proceeding to {next_phase.value}...",
+                    )
+                    handoff = await self._dispatch_agent(
+                        agent,
+                        self._build_agent_input(agent.role),
+                        extra={
+                            "architect_feedback": architect_feedback,
+                            "is_documentation": next_phase == PipelinePhase.DOCUMENTATION,
+                        },
+                    )
+                else:
+                    break
                 continue
 
             if decision.action == HostAction.RETRY_DEV:
