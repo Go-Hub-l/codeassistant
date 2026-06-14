@@ -21,7 +21,7 @@ from coding_assistant.core.pipeline import PHASE_AGENT_MAP, PipelinePhase
 from coding_assistant.core.types import AgentRole
 from coding_assistant.core.workspace_manager import WorkspaceManager
 from coding_assistant.llm.client import LLMClient
-from coding_assistant.llm.config import prompt_api_key_interactive, resolve_api_key
+from coding_assistant.llm.config import load_config, prompt_api_key_interactive, resolve_api_key
 from coding_assistant.tools.code_executor import ShellTool
 from coding_assistant.tools.file_system import FileSystemTool
 from coding_assistant.tools.git_operations import GitTool
@@ -48,6 +48,11 @@ def _ensure_api_key() -> str:
         console.print("[red]API key required. Exiting.[/red]")
         sys.exit(1)
     return api_key
+
+
+def _get_base_url() -> str | None:
+    config = load_config()
+    return config.get("base_url")
 
 
 def _create_project_dir(project_name: str, base_dir: Path) -> Path:
@@ -348,7 +353,7 @@ def new(project_name: str, base_dir: str) -> None:
 
     api_key = _ensure_api_key()
     project_dir = _create_project_dir(project_name, Path(base_dir))
-    llm_client = LLMClient(api_key=api_key)
+    llm_client = LLMClient(api_key=api_key, base_url=_get_base_url())
 
     session = CodingAssistantSession(
         project_dir=project_dir,
@@ -381,7 +386,7 @@ def iter_project(project_name: str, base_dir: str) -> None:
         console.print(f"[red]Project directory not found: {project_dir}[/red]")
         sys.exit(1)
 
-    llm_client = LLMClient(api_key=api_key)
+    llm_client = LLMClient(api_key=api_key, base_url=_get_base_url())
 
     session = CodingAssistantSession(
         project_dir=project_dir,

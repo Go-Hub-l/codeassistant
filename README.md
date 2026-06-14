@@ -64,17 +64,31 @@ echo "api_key: sk-..." > ~/.coding-assistant/config.yaml
 
 If neither is set, the CLI will prompt you interactively.
 
+### Proxy Configuration
+
+If you are behind a firewall and need a proxy to reach the OpenAI API:
+
+```bash
+# Option 1: Environment variable (recommended)
+export HTTPS_PROXY=http://127.0.0.1:7890
+
+# Option 2: Config file
+echo "base_url: https://your-proxy.com/v1" >> ~/.coding-assistant/config.yaml
+```
+
+Supported proxy env vars: `HTTPS_PROXY`, `https_proxy`, `HTTP_PROXY`, `ALL_PROXY`.
+
 ### Default Models
 
 | Agent                   | Model          | Reasoning                                     |
 |-------------------------|----------------|-----------------------------------------------|
-| PM, Architect, Dev      | `gpt-4o`       | Deep reasoning for requirements, design, code |
-| Reviewer, QA, PMgr      | `gpt-4o-mini`  | Faster, cheaper for analysis and orchestration|
+| PM, Architect, Dev      | `deepseek-v4-pro`       | Deep reasoning for requirements, design, code |
+| Reviewer, QA, PMgr      | `deepseek-v4-pro`  | Faster, cheaper for analysis and orchestration|
 
 Override via environment variables:
 ```bash
-export CODING_ASSISTANT_MODEL_PM=gpt-4-turbo
-export CODING_ASSISTANT_MODEL_DEV=gpt-4o
+export CODING_ASSISTANT_MODEL_PM=deepseek-v4-pro
+export CODING_ASSISTANT_MODEL_DEV=deepseek-v4-pro
 ```
 
 ## Usage
