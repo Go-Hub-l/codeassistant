@@ -10,6 +10,9 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.text import Text
 
+from coding_assistant.agents.architect_agent import ArchitectAgent
+from coding_assistant.agents.dev_agent import DevAgent
+from coding_assistant.agents.pm_agent import PMAgent
 from coding_assistant.agents.registry import create_default_registry
 from coding_assistant.core.host import Host, HostAction, HostDecision
 from coding_assistant.core.pipeline import PHASE_AGENT_MAP, PipelinePhase
@@ -17,6 +20,8 @@ from coding_assistant.core.types import AgentRole
 from coding_assistant.core.workspace_manager import WorkspaceManager
 from coding_assistant.llm.client import LLMClient
 from coding_assistant.llm.config import prompt_api_key_interactive, resolve_api_key
+from coding_assistant.tools.code_executor import ShellTool
+from coding_assistant.tools.file_system import FileSystemTool
 from coding_assistant.tools.git_operations import GitTool
 
 console = Console()
@@ -68,7 +73,14 @@ class CodingAssistantSession:
         self.is_iteration = is_iteration
 
         self.workspace_manager = WorkspaceManager(project_dir)
-        self.registry = create_default_registry(llm_client=llm_client)
+        self.fs_tool = FileSystemTool(project_dir)
+        self.shell_tool = ShellTool(project_dir)
+        self.registry = create_default_registry(
+            llm_client=llm_client,
+            project_dir=project_dir,
+            fs_tool=self.fs_tool,
+            shell_tool=self.shell_tool,
+        )
         self.git_tool = GitTool(project_dir)
 
         if is_iteration:
@@ -92,9 +104,7 @@ class CodingAssistantSession:
         console.print("\n[yellow]Interrupted. Workspace saved. Exiting.[/yellow]")
         sys.exit(0)
 
-    async def _handle_checkpoint(
-        self, phase: PipelinePhase, workspace: Any
-    ) -> str | None:
+    async def _handle_checkpoint(self, phase: PipelinePhase, workspace: Any) -> str | None:
         console.print()
         console.rule(f"[bold]Checkpoint: {phase.value}[/bold]")
 
@@ -126,7 +136,9 @@ class CodingAssistantSession:
         agent.model = self.llm_client.get_model(agent.role)
 
         console.print(_agent_label(agent.role), "Analyzing requirements...")
-        handoff = await agent.run(initial_input)
+        handoff = await self._dispatch_agent(agent, initial_input)
+
+        architect_feedback: str | None = None
 
         while True:
             if self._interrupted:
@@ -141,15 +153,19 @@ class CodingAssistantSession:
 
             if decision.action == HostAction.CHECKPOINT:
                 if decision.phase:
-                    await self.host.run_checkpoint(decision.phase)
+                    feedback = await self.host.run_checkpoint(decision.phase)
+                    if feedback and decision.phase == PipelinePhase.ARCHITECTURE:
+                        architect_feedback = feedback
                 continue
 
             if decision.action == HostAction.RETRY_DEV:
                 agent = self.registry.get(AgentRole.DEV)
                 agent.model = self.llm_client.get_model(agent.role)
                 console.print(_agent_label(agent.role), "Retrying with fixes...")
-                handoff = await agent.run(
-                    f"Previous attempt had issues: {handoff.summary}. Please fix."
+                handoff = await self._dispatch_agent(
+                    agent,
+                    f"Previous attempt had issues: {handoff.summary}. Please fix.",
+                    extra={"dev_feedback": handoff.summary},
                 )
                 continue
 
@@ -165,7 +181,14 @@ class CodingAssistantSession:
                     _agent_label(agent.role),
                     f"Starting {decision.next_phase.value} phase...",
                 )
-                handoff = await agent.run(self._build_agent_input(agent.role))
+                handoff = await self._dispatch_agent(
+                    agent,
+                    self._build_agent_input(agent.role),
+                    extra={
+                        "architect_feedback": architect_feedback,
+                        "is_documentation": decision.next_phase == PipelinePhase.DOCUMENTATION,
+                    },
+                )
                 continue
 
             if decision.action == HostAction.FORCE_HANDOFF:
@@ -173,7 +196,10 @@ class CodingAssistantSession:
                 if decision.next_phase:
                     self.host.advance_to(decision.next_phase)
                     agent = self.host.get_current_agent()
-                    handoff = await agent.run(self._build_agent_input(agent.role))
+                    handoff = await self._dispatch_agent(
+                        agent,
+                        self._build_agent_input(agent.role),
+                    )
                 else:
                     break
                 continue
@@ -182,11 +208,33 @@ class CodingAssistantSession:
 
         self.workspace_manager.save()
 
+    async def _dispatch_agent(
+        self, agent: Any, input_text: str, extra: dict[str, Any] | None = None
+    ) -> Any:
+        extra = extra or {}
+        if isinstance(agent, PMAgent):
+            return await agent.analyze_requirements(input_text, self.workspace_manager.workspace)
+        if isinstance(agent, ArchitectAgent):
+            return await agent.design_architecture(
+                self.workspace_manager.workspace,
+                user_feedback=extra.get("architect_feedback"),
+            )
+        if isinstance(agent, DevAgent):
+            if extra.get("is_documentation"):
+                return await agent.generate_documentation(self.workspace_manager.workspace)
+            return await agent.implement_code(
+                self.workspace_manager.workspace,
+                feedback=extra.get("dev_feedback"),
+            )
+        return await agent.run(input_text)
+
     def _build_agent_input(self, role: AgentRole) -> str:
         ws = self.workspace_manager.workspace
         if role == AgentRole.ARCHITECT:
             return f"Design architecture based on these requirements:\n{ws.requirements.prd}"
         if role == AgentRole.DEV:
+            if self.host.state.current_phase == PipelinePhase.DOCUMENTATION:
+                return "Generate project documentation"
             return (
                 f"Implement code based on this architecture:\n"
                 f"{ws.architecture.tech_stack}\n{ws.architecture.project_structure}"

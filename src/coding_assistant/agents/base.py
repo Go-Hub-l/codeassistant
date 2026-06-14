@@ -65,6 +65,12 @@ class Agent:
 
         self.add_message("assistant", assistant_message, tool_calls=tool_calls)
 
+        if response.get("error"):
+            return HandoffResult(
+                status=HandoffStatus.FAILED,
+                summary=assistant_message[:500] if assistant_message else "LLM API call failed",
+            )
+
         handoff_result = self._extract_handoff(tool_calls)
         if handoff_result:
             return handoff_result

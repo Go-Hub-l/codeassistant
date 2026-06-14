@@ -1,8 +1,12 @@
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, cast
 
-from coding_assistant.agents.base import Agent, AgentRole
+from coding_assistant.agents.architect_agent import ArchitectAgent
+from coding_assistant.agents.base import Agent
+from coding_assistant.agents.dev_agent import DevAgent
+from coding_assistant.agents.pm_agent import PMAgent
+from coding_assistant.core.types import AgentRole
 
 
 class AgentRegistry:
@@ -32,73 +36,70 @@ class AgentRegistry:
 def create_default_registry(**kwargs: Any) -> AgentRegistry:
     registry = AgentRegistry()
 
-    role_configs: list[dict[str, Any]] = [
-        {
-            "role": AgentRole.PM,
-            "system_prompt": (
-                "You are a Product Manager agent. Analyze natural language requirements, "
-                "produce structured requirement documents including PRD, user stories, "
-                "feature list with priorities, and acceptance criteria. "
-                "Write your output to the Workspace Requirements partition. "
-                "When done, call the handoff tool."
-            ),
-        },
-        {
-            "role": AgentRole.ARCHITECT,
-            "system_prompt": (
-                "You are an Architect agent. Design technical architecture based on requirements. "
-                "Select the best Python framework and libraries. Define API contracts, "
-                "database schema, project structure, and security considerations. "
-                "Write your output to the Workspace Architecture partition. "
-                "When done, call the handoff tool."
-            ),
-        },
-        {
-            "role": AgentRole.DEV,
-            "system_prompt": (
-                "You are a Developer agent. Implement code based on the architecture design. "
-                "Write all sub-features in a single phase. Generate source code, "
-                "configuration files, and database scripts. "
-                "Update the Workspace Code partition with file references. "
-                "When done, call the handoff tool."
-            ),
-        },
-        {
-            "role": AgentRole.REVIEWER,
-            "system_prompt": (
-                "You are a Code Reviewer agent. Audit code for quality, security, "
-                "and convention compliance. Run static analysis tools (ruff, bandit, mypy). "
-                "Classify issues by severity: minor, major, or critical. "
-                "Write your review report to the Workspace Review partition. "
-                "When done, call the handoff tool."
-            ),
-        },
-        {
-            "role": AgentRole.QA,
-            "system_prompt": (
-                "You are a QA agent. Generate and execute tests for the implemented code. "
-                "Create unit tests and integration tests using pytest. "
-                "Run tests in Docker, capture results and coverage. "
-                "Classify failures by severity. "
-                "Write your test report to the Workspace Test partition. "
-                "When done, call the handoff tool."
-            ),
-        },
-        {
-            "role": AgentRole.PMGR,
-            "system_prompt": (
-                "You are a Project Manager agent (the Host). Orchestrate agent scheduling, "
-                "manage handoffs, enforce checkpoints, and track progress. "
-                "Decide which agent speaks next based on the current task state. "
-                "Present artifacts to the user at checkpoints for confirmation. "
-                "When done, call the handoff tool."
-            ),
-        },
-    ]
+    registry.register(
+        PMAgent(
+            llm_client=kwargs.get("llm_client"),
+            model=kwargs.get("model"),
+        )
+    )
 
-    for config in role_configs:
-        agent_kwargs = {k: v for k, v in kwargs.items()}
-        agent_kwargs.update(config)
+    registry.register(
+        ArchitectAgent(
+            llm_client=kwargs.get("llm_client"),
+            model=kwargs.get("model"),
+        )
+    )
+
+    registry.register(
+        DevAgent(
+            llm_client=kwargs.get("llm_client"),
+            model=kwargs.get("model"),
+            project_dir=kwargs.get("project_dir"),
+            fs_tool=kwargs.get("fs_tool"),
+            shell_tool=kwargs.get("shell_tool"),
+        )
+    )
+
+    reviewer_config = {
+        "role": AgentRole.REVIEWER,
+        "system_prompt": (
+            "You are a Code Reviewer agent. Audit code for quality, security, "
+            "and convention compliance. Run static analysis tools (ruff, bandit, mypy). "
+            "Classify issues by severity: minor, major, or critical. "
+            "Write your review report to the Workspace Review partition. "
+            "When done, call the handoff tool."
+        ),
+    }
+    qa_config = {
+        "role": AgentRole.QA,
+        "system_prompt": (
+            "You are a QA agent. Generate and execute tests for the implemented code. "
+            "Create unit tests and integration tests using pytest. "
+            "Run tests in Docker, capture results and coverage. "
+            "Classify failures by severity. "
+            "Write your test report to the Workspace Test partition. "
+            "When done, call the handoff tool."
+        ),
+    }
+    pmgr_config = {
+        "role": AgentRole.PMGR,
+        "system_prompt": (
+            "You are a Project Manager agent (the Host). Orchestrate agent scheduling, "
+            "manage handoffs, enforce checkpoints, and track progress. "
+            "Decide which agent speaks next based on the current task state. "
+            "Present artifacts to the user at checkpoints for confirmation. "
+            "When done, call the handoff tool."
+        ),
+    }
+
+    for config in [reviewer_config, qa_config, pmgr_config]:
+        role: AgentRole = cast(AgentRole, config["role"])
+        agent_kwargs = {
+            "llm_client": kwargs.get("llm_client"),
+            "model": kwargs.get("model"),
+            "role": role,
+        }
+        agent_kwargs.update({k: v for k, v in config.items() if k != "role"})
         registry.register(Agent(**agent_kwargs))
 
     return registry

@@ -8,7 +8,10 @@ from coding_assistant.core.workspace import (
     RequirementsPartition,
     Workspace,
 )
-from coding_assistant.core.workspace_manager import WorkspaceManager
+from coding_assistant.core.workspace_manager import (
+    WorkspaceCorruptionError,
+    WorkspaceManager,
+)
 
 
 class TestWorkspace:
@@ -141,3 +144,90 @@ class TestWorkspaceManager:
         manager = WorkspaceManager(tmp_path)
         with pytest.raises(RuntimeError, match="not loaded"):
             _ = manager.workspace
+
+
+class TestWorkspaceCorruption:
+    def test_invalid_json_raises_corruption_error(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        manager.create("test")
+        with open(manager.workspace_file, "w") as f:
+            f.write("this is not valid json {{{")
+
+        manager2 = WorkspaceManager(tmp_path)
+        with pytest.raises(WorkspaceCorruptionError, match="invalid JSON"):
+            manager2.load()
+
+    def test_corruption_creates_backup(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        manager.create("test")
+        with open(manager.workspace_file, "w") as f:
+            f.write("corrupted content")
+
+        manager2 = WorkspaceManager(tmp_path)
+        try:
+            manager2.load()
+        except WorkspaceCorruptionError as e:
+            assert e.backup_path is not None
+            assert ".corrupt." in e.backup_path
+            assert Path(e.backup_path).exists()
+
+    def test_empty_file_raises_corruption_error(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        manager.create("test")
+        with open(manager.workspace_file, "w") as f:
+            f.write("")
+
+        manager2 = WorkspaceManager(tmp_path)
+        with pytest.raises(WorkspaceCorruptionError, match="empty"):
+            manager2.load()
+
+    def test_invalid_schema_raises_corruption_error(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        manager.create("test")
+        with open(manager.workspace_file, "w") as f:
+            json.dump({"version": 1, "project_name": "test", "requirements": 12345}, f)
+
+        manager2 = WorkspaceManager(tmp_path)
+        with pytest.raises(WorkspaceCorruptionError, match="validation"):
+            manager2.load()
+
+    def test_try_load_falls_back_on_corruption(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        manager.create("test")
+        with open(manager.workspace_file, "w") as f:
+            f.write("corrupted")
+
+        manager2 = WorkspaceManager(tmp_path)
+        ws = manager2.try_load(project_name="recovered")
+        assert ws is not None
+        assert ws.project_name == "recovered"
+
+    def test_try_load_falls_back_on_missing(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        ws = manager.try_load(project_name="new-project")
+        assert ws is not None
+        assert ws.project_name == "new-project"
+
+    def test_save_uses_atomic_write(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        manager.create("test")
+        tmp_file = manager.workspace_file.with_suffix(".tmp")
+        assert not tmp_file.exists()
+        assert manager.workspace_file.exists()
+
+    def test_multiple_corrupt_files_get_unique_backups(self, tmp_path: Path):
+        manager = WorkspaceManager(tmp_path)
+        manager.create("test")
+
+        for content in ["corrupt1", "corrupt2"]:
+            with open(manager.workspace_file, "w") as f:
+                f.write(content)
+
+            m = WorkspaceManager(tmp_path)
+            try:
+                m.load()
+            except WorkspaceCorruptionError:
+                pass
+
+        backup_files = sorted(manager.workspace_dir.glob("workspace.corrupt.*.json"))
+        assert len(backup_files) >= 1

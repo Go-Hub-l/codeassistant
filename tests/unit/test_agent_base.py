@@ -1,6 +1,12 @@
+import asyncio
+from unittest.mock import AsyncMock, MagicMock
+
 import pytest
 
+from coding_assistant.agents.architect_agent import ArchitectAgent
 from coding_assistant.agents.base import Agent
+from coding_assistant.agents.dev_agent import DevAgent
+from coding_assistant.agents.pm_agent import PMAgent
 from coding_assistant.agents.registry import AgentRegistry, create_default_registry
 from coding_assistant.core.types import AgentRole, HandoffStatus, Severity
 
@@ -42,6 +48,20 @@ class TestAgentBase:
         result = asyncio.run(agent.run("test input"))
         assert result.status == HandoffStatus.FAILED
         assert "No LLM client" in result.summary
+
+    def test_run_with_llm_error_returns_failed(self):
+        mock_client = MagicMock()
+        mock_response = {
+            "content": "LLM API call failed after 3 retries: Connection timeout",
+            "tool_calls": [],
+            "error": True,
+        }
+        mock_client.chat = AsyncMock(return_value=mock_response)
+
+        agent = Agent(role=AgentRole.PM, llm_client=mock_client)
+        result = asyncio.run(agent.run("test input"))
+        assert result.status == HandoffStatus.FAILED
+        assert "LLM" in result.summary
 
     def test_extract_handoff_from_tool_calls(self):
         agent = Agent(role=AgentRole.PM)
@@ -162,3 +182,14 @@ class TestCreateDefaultRegistry:
         for role in AgentRole:
             agent = registry.get(role)
             assert agent.llm_client == "mock_client"
+
+    def test_registry_uses_specialized_agent_classes(self):
+        registry = create_default_registry()
+        pm_agent = registry.get(AgentRole.PM)
+        architect_agent = registry.get(AgentRole.ARCHITECT)
+        dev_agent = registry.get(AgentRole.DEV)
+
+        assert isinstance(pm_agent, PMAgent)
+        assert isinstance(architect_agent, ArchitectAgent)
+        assert isinstance(dev_agent, DevAgent)
+        assert not isinstance(dev_agent, PMAgent)
