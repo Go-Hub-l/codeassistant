@@ -125,13 +125,23 @@ class Agent:
             r"(?:I(?:'ve| have)?\s+)?(?:done|completed?|finished?)\s*(?:\.|!)?\s*$",
             r"handoff\s*(?:is\s*)?(?:done|complete|ready)",
             r"call\s+(?:the\s+)?handoff\s+tool",
+            r"(?:完成|已?完成|完毕|结束)\s*[。！]?\s*$",
+            r"调用\s*handoff",
+            r"以上是.*(?:需求|PRD|产品需求)",
         ]
+
         for phrase in done_phrases:
             if re.search(phrase, content, re.IGNORECASE):
                 return HandoffResult(
                     status=HandoffStatus.COMPLETED,
                     summary=content[:500],
                 )
+
+        if len(content) > 300 and re.search(r"##\s+", content):
+            return HandoffResult(
+                status=HandoffStatus.COMPLETED,
+                summary=content[:500],
+            )
 
         return None
 
