@@ -134,7 +134,9 @@ class ArchitectAgent(Agent):
             arch.tech_stack = tech_stack
 
         proj_structure = self._extract_section(
-            response, r"project\s*(?:directory\s*)?structure", r"api\s*contract"
+            response,
+            r"(?:project\s*(?:directory\s*)?structure|项目\s*(?:目录\s*)?结构)",
+            r"(?:api\s*contract|API\s*接口|接口\s*设计)",
         )
         if proj_structure:
             arch.project_structure = proj_structure.strip()
@@ -144,12 +146,18 @@ class ArchitectAgent(Agent):
             arch.api_contracts = api_contracts
 
         db_schema = self._extract_section(
-            response, r"database\s*schema", r"(?:security|api\s*contract)"
+            response,
+            r"(?:database\s*schema|数据库\s*(?:schema|模式|设计))",
+            r"(?:security|安全)",
         )
         if db_schema:
             arch.database_schema = db_schema.strip()
 
-        security = self._extract_section(response, r"security\s*(?:considerations)?", r"$")
+        security = self._extract_section(
+            response,
+            r"(?:security\s*(?:considerations)?|安全\s*(?:考虑|设计|策略)?)",
+            r"$",
+        )
         if security:
             arch.security_considerations = security.strip()
 
