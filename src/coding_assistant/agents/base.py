@@ -93,6 +93,8 @@ class Agent:
 
                 try:
                     args = json.loads(call["function"]["arguments"])
+                    if args.get("severity") == "null":
+                        args["severity"] = None
                     return HandoffResult(**args)
                 except (json.JSONDecodeError, TypeError):
                     continue
@@ -112,6 +114,8 @@ class Agent:
                 inner = re.search(r"\{.*\}", match.group(), re.DOTALL)
                 if inner:
                     args = json.loads(inner.group())
+                    if args.get("severity") == "null":
+                        args["severity"] = None
                     return HandoffResult(**args)
             except (json.JSONDecodeError, TypeError):
                 pass
