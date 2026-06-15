@@ -58,6 +58,7 @@ class PMAgent(Agent):
             messages=messages,
             tools=self.tools,
             model=model,
+            temperature=0.5,
         )
 
         assistant_msg = response.get("content", "")

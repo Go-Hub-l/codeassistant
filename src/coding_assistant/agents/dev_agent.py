@@ -86,16 +86,22 @@ class DevAgent(Agent):
             f"{existing_code}\n"
             f"{feedback_note}"
             "## Instructions:\n"
-            "Implement ALL features according to the architecture. "
-            "Generate complete, runnable Python code.\n\n"
-            "For each file you create or modify, use this format:\n"
+            "CRITICAL: You MUST output actual file content using the EXACT format below.\n"
+            "Do NOT describe what you will do — write the actual code NOW.\n"
+            "Do NOT say 'let me check' or ask questions — generate ALL files immediately.\n\n"
+            "For each file, output EXACTLY this format with NO additional text:\n"
             "```python\n"
             "# File: path/to/file.py\n"
-            "<file content>\n"
+            "<complete file content here>\n"
             "```\n\n"
-            "Write complete files, not fragments. "
-            "Include all imports, type hints, and docstrings.\n"
-            "When you are done implementing ALL code, call the handoff tool."
+            "Include ALL imports, type hints, and docstrings in each file.\n"
+            "Example of CORRECT output:\n"
+            "```python\n"
+            "# File: app/main.py\n"
+            "from fastapi import FastAPI\n\napp = FastAPI()\n\n"
+            "@app.get('/')\ndef root():\n    return {'message': 'hello'}\n"
+            "```\n\n"
+            "After you have output ALL files, say 'done' to signal completion."
         )
 
         self.add_message("user", full_prompt)
@@ -113,6 +119,8 @@ class DevAgent(Agent):
             messages=messages,
             tools=self.tools,
             model=model,
+            temperature=0.3,
+            max_tokens=4096,
         )
 
         assistant_msg = response.get("content", "")
@@ -126,6 +134,30 @@ class DevAgent(Agent):
             )
 
         self._extract_and_write_files(assistant_msg, workspace)
+
+        if not self._generated_files and "```" not in assistant_msg:
+            self.add_message(
+                "user",
+                "You did not output any code files. "
+                "You MUST output code using the ```python ... ``` format. "
+                "Each code block MUST start with '# File: <path>' on the first line. "
+                "Write ALL the code NOW. Do not describe, just write the files.",
+            )
+            messages = [
+                {"role": "system", "content": self.system_prompt}
+            ] + self._conversation_history
+            response = await self.llm_client.chat(
+                messages=messages,
+                tools=self.tools,
+                model=model,
+                temperature=0.3,
+                max_tokens=4096,
+            )
+            assistant_msg = response.get("content", "")
+            tool_calls = response.get("tool_calls", [])
+            self.add_message("assistant", assistant_msg, tool_calls=tool_calls)
+            if not response.get("error"):
+                self._extract_and_write_files(assistant_msg, workspace)
 
         workspace.progress.current_phase = "development"
 
@@ -175,6 +207,8 @@ class DevAgent(Agent):
             messages=messages,
             tools=self.tools,
             model=model,
+            temperature=0.3,
+            max_tokens=4096,
         )
 
         assistant_msg = response.get("content", "")
