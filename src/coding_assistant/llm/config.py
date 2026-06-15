@@ -11,9 +11,10 @@ CONFIG_FILE = CONFIG_DIR / "config.yaml"
 
 
 def resolve_api_key() -> str | None:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if api_key:
-        return api_key
+    for env_var in ("DEEPSEEK_API_KEY", "OPENAI_API_KEY"):
+        api_key = os.environ.get(env_var)
+        if api_key:
+            return api_key
 
     config = load_config()
     api_key = config.get("api_key")

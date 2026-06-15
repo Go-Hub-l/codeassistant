@@ -13,17 +13,18 @@ from coding_assistant.core.types import AgentRole
 logger = logging.getLogger(__name__)
 
 DEFAULT_MODELS: dict[AgentRole, str] = {
-    AgentRole.PM: "gpt-4o",
-    AgentRole.ARCHITECT: "gpt-4o",
-    AgentRole.DEV: "gpt-4o",
-    AgentRole.REVIEWER: "gpt-4o-mini",
-    AgentRole.QA: "gpt-4o-mini",
-    AgentRole.PMGR: "gpt-4o-mini",
+    AgentRole.PM: "deepseek-v4-pro",
+    AgentRole.ARCHITECT: "deepseek-v4-pro",
+    AgentRole.DEV: "deepseek-v4-pro",
+    AgentRole.REVIEWER: "deepseek-v4-pro",
+    AgentRole.QA: "deepseek-v4-pro",
+    AgentRole.PMGR: "deepseek-v4-pro",
 }
 
 MAX_RETRIES = 3
 INITIAL_BACKOFF = 1.0
 DEFAULT_TIMEOUT = 120.0
+DEFAULT_BASE_URL = "https://api.deepseek.com/v1"
 
 
 def _get_proxy_url() -> str | None:
@@ -49,7 +50,7 @@ class LLMClient:
         )
         self._client = AsyncOpenAI(
             api_key=api_key,
-            base_url=base_url,
+            base_url=base_url or DEFAULT_BASE_URL,
             http_client=http_client,
         )
         self._model_overrides = model_overrides or {}
