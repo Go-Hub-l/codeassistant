@@ -71,7 +71,7 @@ class Agent:
                 summary=assistant_message[:500] if assistant_message else "LLM API call failed",
             )
 
-        handoff_result = self._extract_handoff(tool_calls)
+        handoff_result = self._try_handoff(tool_calls, assistant_message)
         if handoff_result:
             return handoff_result
 
@@ -79,6 +79,12 @@ class Agent:
             status=HandoffStatus.INCOMPLETE,
             summary=assistant_message[:500] if assistant_message else "No response generated",
         )
+
+    def _try_handoff(self, tool_calls: list[dict[str, Any]], content: str) -> HandoffResult | None:
+        handoff = self._extract_handoff(tool_calls)
+        if handoff:
+            return handoff
+        return self._extract_handoff_from_text(content)
 
     def _extract_handoff(self, tool_calls: list[dict[str, Any]]) -> HandoffResult | None:
         for call in tool_calls:
@@ -90,6 +96,38 @@ class Agent:
                     return HandoffResult(**args)
                 except (json.JSONDecodeError, TypeError):
                     continue
+        return None
+
+    def _extract_handoff_from_text(self, content: str) -> HandoffResult | None:
+        import json
+        import re
+
+        pattern = re.compile(
+            r'```(?:json)?\s*\n?\s*\{[^`]*"handoff"[^`]*\}\s*\n?\s*```',
+            re.IGNORECASE | re.DOTALL,
+        )
+        match = pattern.search(content)
+        if match:
+            try:
+                inner = re.search(r"\{.*\}", match.group(), re.DOTALL)
+                if inner:
+                    args = json.loads(inner.group())
+                    return HandoffResult(**args)
+            except (json.JSONDecodeError, TypeError):
+                pass
+
+        done_phrases = [
+            r"(?:I(?:'ve| have)?\s+)?(?:done|completed?|finished?)\s*(?:\.|!)?\s*$",
+            r"handoff\s*(?:is\s*)?(?:done|complete|ready)",
+            r"call\s+(?:the\s+)?handoff\s+tool",
+        ]
+        for phrase in done_phrases:
+            if re.search(phrase, content, re.IGNORECASE):
+                return HandoffResult(
+                    status=HandoffStatus.COMPLETED,
+                    summary=content[:500],
+                )
+
         return None
 
     def build_handoff_tool_schema(self) -> dict[str, Any]:

@@ -154,7 +154,7 @@ class ReviewerAgent(Agent):
 
         self._update_workspace(assistant_msg, security_issues, tool_results, workspace)
 
-        handoff = self._extract_handoff(tool_calls)
+        handoff = self._try_handoff(tool_calls, assistant_msg)
         if handoff:
             return handoff
 

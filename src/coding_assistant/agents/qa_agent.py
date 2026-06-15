@@ -118,7 +118,7 @@ class QAAgent(Agent):
 
         workspace.progress.current_phase = "testing"
 
-        handoff = self._extract_handoff(tool_calls)
+        handoff = self._try_handoff(tool_calls, assistant_msg)
         if handoff:
             return handoff
 

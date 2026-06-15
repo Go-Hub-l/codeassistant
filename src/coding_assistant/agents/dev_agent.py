@@ -129,7 +129,7 @@ class DevAgent(Agent):
 
         workspace.progress.current_phase = "development"
 
-        handoff = self._extract_handoff(tool_calls)
+        handoff = self._try_handoff(tool_calls, assistant_msg)
         if handoff:
             return handoff
 
@@ -191,7 +191,7 @@ class DevAgent(Agent):
 
         workspace.progress.current_phase = "documentation"
 
-        handoff = self._extract_handoff(tool_calls)
+        handoff = self._try_handoff(tool_calls, assistant_msg)
         if handoff:
             return handoff
 

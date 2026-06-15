@@ -118,6 +118,7 @@ class LLMClient:
             kwargs["model"] = model
         if tools:
             kwargs["tools"] = tools
+            kwargs["tool_choice"] = "auto"
         if max_tokens:
             kwargs["max_tokens"] = max_tokens
         if stream:

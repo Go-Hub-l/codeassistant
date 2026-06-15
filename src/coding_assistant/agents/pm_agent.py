@@ -32,9 +32,7 @@ class PMAgent(Agent):
             model=model,
         )
 
-    async def analyze_requirements(
-        self, user_input: str, workspace: Workspace
-    ) -> HandoffResult:
+    async def analyze_requirements(self, user_input: str, workspace: Workspace) -> HandoffResult:
         context = self._build_context(workspace)
         full_prompt = (
             f"## Existing project context:\n{context}\n\n"
@@ -69,7 +67,7 @@ class PMAgent(Agent):
         if not response.get("error"):
             self._update_workspace(assistant_msg, workspace)
 
-        handoff = self._extract_handoff(tool_calls)
+        handoff = self._try_handoff(tool_calls, assistant_msg)
         if handoff:
             return handoff
 
