@@ -34,6 +34,7 @@ class Agent:
     def add_message(self, role: str, content: str, **kwargs: Any) -> None:
         message: dict[str, Any] = {"role": role, "content": content}
         message.update(kwargs)
+        message.pop("tool_calls", None)
         self._conversation_history.append(message)
 
     def get_conversation_history(self) -> list[dict[str, Any]]:
